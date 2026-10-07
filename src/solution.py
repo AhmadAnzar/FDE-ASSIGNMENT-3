@@ -284,6 +284,25 @@ Output ONLY a valid JSON object. No markdown, no explanation, no code fences."""
 # Architecture A: Single Agent
 # ---------------------------------------------------------------------------
 def handle_single_architecture(request_id: str, request_data: dict, policy_text: str) -> ProcurementDecision:
+    # Step 0: Regex Guard for Prompt Injection
+    from src.guard import scan_for_injection
+    justification = request_data.get("business_justification", "")
+    is_injected = scan_for_injection(justification)
+    
+    if is_injected:
+        # Fast-fail: Reject immediately without calling LLM
+        return ProcurementDecision(
+            request_id=request_id,
+            recommendation="Request rejected automatically due to detected policy override/prompt injection attempts.",
+            evidence=[{"source": "regex_guard", "finding": "Malicious instruction or override attempt detected in justification.", "reference": None}],
+            required_approvals=["Security"],
+            missing_information=["Valid business justification"],
+            risk_flags=["prompt_injection_detected", "missing_information"],
+            next_step="Route to Security for incident review.",
+            human_review_required=True,
+            telemetry=RunTelemetry(llm_calls=0, tool_calls=0, tool_names=[])
+        )
+
     # Step 1: Gather all evidence deterministically
     evidence = gather_evidence(request_data)
     tool_names = evidence.pop("tools_used")
