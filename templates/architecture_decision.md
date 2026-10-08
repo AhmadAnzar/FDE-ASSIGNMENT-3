@@ -1,36 +1,37 @@
 # Architecture Decision Memo
 
-**Maximum length: 500 words**
-
 ## Decision
-I recommend shipping the **single agent** architecture.
+Ship **Architecture A: a single agent on a deterministic rules engine.** If the model is unavailable, the system falls back to the rules-only decision.
 
 ## Evidence
-Both architectures were evaluated against the 6 public edge cases, which included complex scenarios like budget shortfalls, API outages, and malicious prompt injections.
+16 labelled cases, the same set for every architecture: 10 dataset requests, 5 synthetic requests and 1 API outage. Model: `qwen/qwen3.8-27b` (Groq), 1 run per case. Numbers come from the current code (`--replay` of the recorded run); the original live run is in `evals/results_comparison.md`.
 
-| Metric | Single agent | Staged / 2-agent |
-|---|---:|---:|
-| Cases passing your quality criteria | 6/6 | 6/6 |
-| Avg latency | ~3 - 10s | ~30 - 60s |
-| Avg LLM calls | 1 | 2 |
-| Avg tool calls | 6 (deterministic) | 6 (deterministic) |
-| Notable policy/grounding failures | 0 | 0 |
+| Metric | Rules only | **A · Single** | B · Staged |
+|---|---:|---:|---:|
+| All rubric checks passed | 15/16 | **15/16** | 14/16 |
+| Policy / escalation / grounding | 100% | 100% | 100% |
+| Model latency (excl. throttling) | 0.2 s | **1.5 s** | 3.7 s |
+| End-to-end, free tier | 0.2 s | 21 s | 56 s |
+| LLM calls / tokens | 0 / 0 | **1 / 2.1k** | 2 / 4.6k |
+| Ungrounded claims blocked | - | 4 | 5 |
 
 ## Trade-offs
-**What improved with Staged?** 
-The staged architecture logically separated the tasks (summarizing raw data vs. applying policy), making the final context window for the Reviewer agent slightly cleaner.
+**Staged costs more and improves nothing.** The Reviewer saw the raw evidence, yet fixed none of the single agent's misses and over-escalated a $950 training pack. It doubled tokens and calls. Under the provider's output-token limit, end-to-end time went from 21 s to 56 s.
 
-**What became slower/more expensive?** 
-The staged approach doubled our LLM invocations and token usage per request. Because of the synthetic rate limits on our chosen model (`qwen3.8-27b`), making sequential LLM calls caused severe throttling. We were forced to introduce 15-second backoffs, resulting in abysmal user latency (upwards of 60 seconds) for the staged variant, compared to the single agent which frequently finished in under 5 seconds.
+**The rules engine does the policy work.** Approvals, flags, missing information and escalation were 100% correct in all three variants, because code computes them and the model can only add to them. Budget, thresholds, review dates, registry/API conflicts, injection detection and tool failures are code, not prompt instructions.
+
+**The AI does judgment and explanation.** It decides whether an existing tool covers the need and whether an AI tool fits the data class, and it writes a recommendation grounded in record IDs. Rules-only matches it on next-action accuracy but cannot explain or judge credible gaps, which is the analyst-facing value. Model claims citing records no tool returned are removed.
+
+**Judgment errors:**
+- **L-10:** in the live run the model recommended "reuse" with nothing to reuse. I added a guardrail requiring a catalog overlap. Replaying the recorded answers confirms the fix (14 → 15/16) with no new model calls. This was a post-hoc fix, disclosed here.
+- **L-08:** all variants routed a clear duplicate (TaskFlow Pro) to review instead of recommending reuse. That's conservative, and the overlap stays visible to the human.
+
+**Prompt.** Using grounded evidence lines plus policy §3/§8/§9, instead of the full policy and raw tool JSON, cut prompt tokens by 47% with the same 6/6 on the public cases.
 
 ## Risks / limitations
-Before rolling this into production, I would validate:
-1. **JSON Output Stability:** We are currently using regex and string manipulation to strip `<think>` tags and format the LLM's JSON. In production, we should enforce strict structured outputs using standard tools (like OpenAI's structured JSON schema or Pydantic's `instructor` library) to ensure 100% parseable API responses.
-2. **Context Window Limits:** Currently, we pass the entire policy text and full software catalog overlap results into the system prompt. If the catalog grows massive, we risk blowing out the context window. 
+- One run per case, because of the free-tier daily quota. Variance is unmeasured, and L-08 flipped between reuse and review in live use. I'd run 3–5 repeats before production.
+- Small test set, with labels I wrote from the policy before any model run.
+- Latency is dominated by free-tier throttling.
 
 ## Why this is the right MVP
-The assignment's core design principle is "CODE for deterministic checks; AI for context." 
-
-Many AI implementations fail because they rely on fragile LLM tool-calling loops (like ReAct) to execute basic queries. By pushing all 6 tool calls (budget lookup, catalog search, API calls) into deterministic Python code *before* the LLM is even invoked, we eliminated tool-hallucinations entirely. 
-
-The single-agent architecture receives a perfectly structured dictionary of evidence and simply acts as a reasoning engine to apply the policy rules. This approach is highly reliable, easily testable, significantly cheaper, and performs as well as the more complex 2-agent setup. Unnecessary orchestration is a liability in production; our single-agent MVP solves the exact business problem with maximum efficiency.
+One model call, deterministic policy and guardrails the model cannot override. When the AI is down, it degrades to a correct rules-only decision in under a second. Staged orchestration cost twice as much without better results, so the simpler system ships.

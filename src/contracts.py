@@ -14,6 +14,17 @@ class RunTelemetry(BaseModel):
     llm_calls: int | None = None
     tool_calls: int | None = None
     tool_names: list[str] = Field(default_factory=list)
+    # Optional extras (all additive; the evaluation contract above is unchanged)
+    architecture: str | None = None
+    latency_ms: float | None = None
+    llm_latency_ms: float | None = None
+    retry_wait_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    failed_tools: list[str] = Field(default_factory=list)
+    ungrounded_items_dropped: int | None = None
+    llm_error: str | None = None
+    replayed: bool | None = None  # LLM responses came from a recorded run
 
 
 class ProcurementDecision(BaseModel):
@@ -26,9 +37,13 @@ class ProcurementDecision(BaseModel):
     next_step: str
     human_review_required: bool = True
     telemetry: RunTelemetry | None = None
+    # Optional machine-readable action: proceed_to_approval | route_for_review |
+    # request_clarification | reuse_existing_tool
+    recommended_action: str | None = None
 
 
-Architecture = Literal["single", "staged"]
+# "rules_only" is a no-LLM reference baseline used by the evaluation.
+Architecture = Literal["single", "staged", "rules_only"]
 
 # Suggested approval names for consistency in evaluation:
 # Manager, Department Head, Procurement, Finance, CFO, Security, Privacy, Legal

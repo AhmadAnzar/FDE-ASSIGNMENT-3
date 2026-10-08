@@ -36,6 +36,13 @@ def wait_for_api(url: str, proc: subprocess.Popen, timeout_seconds: float = 10.0
     raise RuntimeError(f"Vendor-risk API did not become ready within {timeout_seconds:.0f}s: {url}")
 
 
+def _api_already_running(url: str) -> bool:
+    try:
+        return requests.get(url, timeout=0.5).ok
+    except requests.RequestException:
+        return False
+
+
 def _handle_termination(signum: int, frame: object) -> None:
     """Route SIGTERM through normal cleanup (useful for IDE/terminal stop actions)."""
     raise KeyboardInterrupt
@@ -45,22 +52,25 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_termination)
     procs: list[subprocess.Popen] = []
     try:
-        print("Starting vendor-risk API on http://127.0.0.1:8001 ...")
-        api_proc = start(
-            [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                "mock_api.app:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8001",
-            ]
-        )
-        procs.append(api_proc)
-        wait_for_api("http://127.0.0.1:8001/health", api_proc)
-        print("Vendor-risk API is ready.")
+        if _api_already_running("http://127.0.0.1:8001/health"):
+            print("Vendor-risk API already running on http://127.0.0.1:8001 - reusing it.")
+        else:
+            print("Starting vendor-risk API on http://127.0.0.1:8001 ...")
+            api_proc = start(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "mock_api.app:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8001",
+                ]
+            )
+            procs.append(api_proc)
+            wait_for_api("http://127.0.0.1:8001/health", api_proc)
+            print("Vendor-risk API is ready.")
 
         try:
             __import__("streamlit")
@@ -68,7 +78,7 @@ def main() -> None:
             print("Streamlit is not installed. Run: pip install -r requirements.txt")
             print("The mock API is still running. Press Ctrl+C to stop.")
         else:
-            print("Starting starter UI on http://127.0.0.1:8501 ...")
+            print("Starting Procurement Copilot UI on http://127.0.0.1:8501 ...")
             procs.append(
                 start(
                     [
@@ -76,7 +86,7 @@ def main() -> None:
                         "-m",
                         "streamlit",
                         "run",
-                        "app.py",
+                        "streamlit_app.py",
                         "--server.port",
                         "8501",
                     ]

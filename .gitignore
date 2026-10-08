@@ -4,4 +4,7 @@ __pycache__/
 .env
 .DS_Store
 .pytest_cache/
-evals/results_*.csv
+decisions_log.jsonl
+
+# Personal / local-only files
+docs/demo_script.md

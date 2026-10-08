@@ -1,0 +1,7 @@
+case_id,architecture,repeat,correct_next_action,grounded_evidence,policy_followed,human_escalation_correct,pass_all,latency_ms,latency_excl_wait_ms,llm_calls,tool_calls,prompt_tokens,completion_tokens,retry_wait_ms,ungrounded_dropped,llm_error,action,approvals,flags,notes
+L-01,single,1,True,True,True,True,True,24145.0,1745.0,1,7,3120,400,22400.0,0,,route_for_review,Manager,existing_tool_overlap,
+L-02,single,1,True,True,True,True,True,24023.3,1323.3,1,7,3347,425,22700.0,0,,route_for_review,Department Head|Finance|Procurement|Security|Legal,existing_tool_overlap|legal_review_required|security_review_required,
+L-03,single,1,True,True,True,True,True,25704.2,1504.2,1,7,3253,476,24200.0,0,,route_for_review,Department Head|Finance|Procurement|Security,existing_tool_overlap|security_review_required,
+L-05,single,1,True,True,True,True,True,28361.6,1281.6,1,7,3182,407,27080.0,1,,route_for_review,Department Head|Finance|Procurement|Security|Privacy|Legal,budget_insufficient|legal_review_required|privacy_review_required|security_review_required,
+L-06,single,1,True,True,True,True,True,24517.9,1397.9,1,7,3454,435,23120.0,0,,request_clarification,Security|Privacy,existing_tool_overlap|missing_information|privacy_review_required|prompt_injection_detected|security_review_required,
+L-09,single,1,True,True,True,True,True,26054.6,1314.6,1,7,3047,354,24740.0,0,,route_for_review,Department Head|Finance|Procurement|Security|Legal,legal_review_required|security_review_required|vendor_risk_unavailable,

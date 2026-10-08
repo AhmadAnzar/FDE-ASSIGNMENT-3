@@ -100,9 +100,6 @@ def main() -> None:
                 'passed_minimum_checks':False, 'latency_ms':round(latency_ms,1),
                 'llm_calls':'', 'tool_calls':'', 'failures':f"ERROR: {type(exc).__name__}: {exc}"
             })
-            
-        # Sleep to avoid Groq TPM rate limits
-        time.sleep(8)
 
     if rows:
         out = ROOT/'evals'/f"results_{args.architecture}.csv"
