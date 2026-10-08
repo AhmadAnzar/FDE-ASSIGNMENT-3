@@ -36,6 +36,7 @@ python evals/run_comparison.py --architectures single --repeats 1 --cases L-06 S
   | `policy_followed` | required ⊆ approvals ⊆ required + optional, required flags present, no forbidden flags, missing info correct |
   | `human_escalation_correct` | human review kept and specialist approvals (Finance/CFO/Security/Privacy/Legal) exactly as labelled |
   | `grounded_evidence` | every evidence reference resolves to a record ID a tool returned (computed independently) or a policy section |
+  | `under_escalated` | reported separately: the action is weaker than every acceptable one, or a required approval is missing (the dangerous direction) |
 
 - **Also recorded** - latency with and without provider rate-limit backoff, LLM/tool calls, tokens, ungrounded model claims dropped, LLM errors, and output stability across repeats.
 - **`rules_only`** is a reference baseline with no LLM. It shows exactly what the LLM adds.

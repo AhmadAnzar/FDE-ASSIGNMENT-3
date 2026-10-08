@@ -62,6 +62,16 @@ def case_request(case: dict) -> dict:
     return case["request"] if "request" in case else get_request(case["request_id"])
 
 
+# Weakest -> strictest. Under-escalation (the dangerous direction) = a weaker action than every
+# acceptable one, or a required approval missing.
+ACTION_RANK = {"proceed_to_approval": 0, "reuse_existing_tool": 1, "route_for_review": 2, "request_clarification": 3}
+
+
+def is_under_escalated(action: str, approvals: set[str], case: dict) -> bool:
+    weakest_ok = min(ACTION_RANK[a] for a in case["expected_actions"])
+    return ACTION_RANK.get(action, -1) < weakest_ok or bool(set(case["required_approvals"]) - approvals)
+
+
 def score(decision, case: dict, valid_refs: set[str]) -> dict:
     approvals = set(decision.required_approvals)
     required = set(case["required_approvals"])
@@ -110,6 +120,7 @@ def score(decision, case: dict, valid_refs: set[str]) -> dict:
         "grounded_evidence": grounded,
         "policy_followed": approvals_ok and flags_ok and missing_ok,
         "human_escalation_correct": escalation_ok,
+        "under_escalated": is_under_escalated(decision.recommended_action, approvals, case),
         "approvals_ok": approvals_ok,
         "flags_ok": flags_ok,
         "missing_ok": missing_ok,
@@ -160,6 +171,7 @@ def summarise(rows: list[dict], architectures: list[str], repeats: int, n_cases:
     row("Correct next action", lambda rs: pct(rs, "correct_next_action"))
     row("Policy followed (approvals/flags/missing exact)", lambda rs: pct(rs, "policy_followed"))
     row("Human escalation correct", lambda rs: pct(rs, "human_escalation_correct"))
+    row("Under-escalated runs (dangerous direction)", lambda rs: str(sum(1 for r in rs if r["under_escalated"])))
     row("Evidence grounded", lambda rs: pct(rs, "grounded_evidence"))
     row("Ungrounded model claims dropped (total)", lambda rs: str(sum(int(r["ungrounded_dropped"] or 0) for r in rs)))
     row("LLM errors / fallbacks", lambda rs: str(sum(1 for r in rs if r["llm_error"])))
@@ -192,7 +204,7 @@ def summarise(rows: list[dict], architectures: list[str], repeats: int, n_cases:
 
 
 FIELDS = ["case_id", "architecture", "repeat", "correct_next_action", "grounded_evidence", "policy_followed",
-          "human_escalation_correct", "pass_all", "latency_ms", "latency_excl_wait_ms", "llm_calls", "tool_calls",
+          "human_escalation_correct", "under_escalated", "pass_all", "latency_ms", "latency_excl_wait_ms", "llm_calls", "tool_calls",
           "prompt_tokens", "completion_tokens", "retry_wait_ms", "ungrounded_dropped", "llm_error", "action",
           "approvals", "flags", "notes"]
 
@@ -226,11 +238,17 @@ def mock_api():
 
 def load_rows(path: Path) -> list[dict]:
     """Read a results CSV back with proper types."""
-    bools = {"correct_next_action", "grounded_evidence", "policy_followed", "human_escalation_correct", "pass_all"}
+    bools = {"correct_next_action", "grounded_evidence", "policy_followed", "human_escalation_correct", "pass_all",
+             "under_escalated"}
+    cases = {c["case_id"]: c for c in load_cases()}
     nums = {"latency_ms", "latency_excl_wait_ms", "retry_wait_ms"}
     ints = {"repeat", "llm_calls", "tool_calls", "prompt_tokens", "completion_tokens", "ungrounded_dropped"}
     out = []
     for r in csv.DictReader(path.open(encoding="utf-8")):
+        if "under_escalated" not in r:  # back-fill files written before this metric existed
+            approvals = set(filter(None, r["approvals"].split("|")))
+            r["under_escalated"] = str(bool(r["llm_error"].startswith("CRASH"))
+                                       or is_under_escalated(r["action"], approvals, cases[r["case_id"]]))
         for k in bools:
             r[k] = r[k] == "True"
         for k in nums:
@@ -245,7 +263,7 @@ def crash_row(case: dict, arch: str, rep: int, start: float, exc: Exception) -> 
     row = {k: "" for k in FIELDS}
     row.update({"case_id": case["case_id"], "architecture": arch, "repeat": rep, "pass_all": False,
                 "correct_next_action": False, "grounded_evidence": False, "policy_followed": False,
-                "human_escalation_correct": False, "latency_ms": round((time.perf_counter() - start) * 1000, 1),
+                "human_escalation_correct": False, "under_escalated": True, "latency_ms": round((time.perf_counter() - start) * 1000, 1),
                 "latency_excl_wait_ms": 0, "llm_calls": 0, "tool_calls": 0, "prompt_tokens": 0,
                 "completion_tokens": 0, "retry_wait_ms": 0, "ungrounded_dropped": 0,
                 "llm_error": f"CRASH {type(exc).__name__}: {exc}", "notes": f"crash: {exc}"})
@@ -260,6 +278,7 @@ def result_row(case: dict, arch: str, rep: int, decision, refs: set[str]) -> dic
     return {
         "case_id": case["case_id"], "architecture": arch, "repeat": rep,
         **{k: s_[k] for k in ("correct_next_action", "grounded_evidence", "policy_followed", "human_escalation_correct")},
+        "under_escalated": s_["under_escalated"],
         "pass_all": passed,
         "latency_ms": t.latency_ms, "latency_excl_wait_ms": round(t.latency_ms - (t.retry_wait_ms or 0), 1),
         "llm_calls": t.llm_calls, "tool_calls": t.tool_calls,

@@ -1,6 +1,6 @@
 # Architecture comparison results
 
-Generated 2026-10-08 12:42 - 16 labelled cases; LLM architectures x 1 repeat(s), rules_only x 1 (deterministic).
+Generated 2026-10-08 15:45 - 16 labelled cases; LLM architectures x 1 repeat(s), rules_only x 1 (deterministic).
 Model: `qwen/qwen3.8-27b` (Groq) - live model calls, recorded to evals/llm_cache.jsonl (before the L-10 reuse guardrail was added).
 Latency excl. wait = end-to-end minus provider rate-limit backoff (free tier: 8,000 tokens/minute).
 
@@ -10,6 +10,7 @@ Latency excl. wait = end-to-end minus provider rate-limit backoff (free tier: 8,
 | Correct next action | 94% | 88% | 88% |
 | Policy followed (approvals/flags/missing exact) | 100% | 100% | 100% |
 | Human escalation correct | 100% | 100% | 100% |
+| Under-escalated runs (dangerous direction) | 0 | 0 | 0 |
 | Evidence grounded | 100% | 100% | 100% |
 | Ungrounded model claims dropped (total) | 0 | 4 | 5 |
 | LLM errors / fallbacks | 0 | 0 | 0 |

@@ -14,6 +14,7 @@ Ship **Architecture A: a single agent on a deterministic rules engine.** If the 
 | End-to-end, free tier | 0.2 s | 21 s | 56 s |
 | LLM calls / tokens | 0 / 0 | **1 / 2.1k** | 2 / 4.6k |
 | Ungrounded claims blocked | - | 4 | 5 |
+| Under-escalated runs | 0 | 0 | 0 |
 
 ## Trade-offs
 **Staged costs more and improves nothing.** The Reviewer saw the raw evidence, yet fixed none of the single agent's misses and over-escalated a $950 training pack, while doubling tokens and calls.
@@ -24,9 +25,9 @@ Ship **Architecture A: a single agent on a deterministic rules engine.** If the 
 
 **Judgment errors:**
 - **L-10:** in the live run the model recommended "reuse" with nothing to reuse. I added a guardrail requiring a catalog overlap. Replaying the recorded answers confirms the fix (14 → 15/16) with no new model calls. This was a post-hoc fix, disclosed here.
-- **L-08:** all variants routed a clear duplicate (TaskFlow Pro) to review instead of recommending reuse. That's conservative, and the overlap stays visible to the human.
+- **L-08:** all variants routed a clear duplicate (TaskFlow Pro) to review instead of recommending reuse. Conservative: no run in any variant was weaker than policy requires.
 
-**Prompt.** Using grounded evidence lines plus policy §3/§8/§9, instead of the full policy and raw tool JSON, cut prompt tokens by 47% with the same 6/6 on the public cases.
+**Prompt.** Using grounded evidence lines plus policy §3/§8/§9, instead of the full policy and raw tool JSON, cut prompt tokens 47% with the same 6/6 public-case result.
 
 ## Risks / limitations
 - One run per case, so run-to-run variance is unmeasured; L-08 flipped between reuse and review in live use. I'd run 3–5 repeats before production.

@@ -21,14 +21,42 @@ cp .env.example .env            # then set GROQ_API_KEY
 python run_local.py             # mock vendor-risk API (:8001) + UI (http://localhost:8501)
 ```
 
+The UI has two tabs:
+- **Review**: a recommendation, approvals, a policy checklist with evidence, and a human decision for one request.
+- **Compare A vs B**: runs both architectures on the same request side by side. **Recorded answers** mode replays the evaluation's model answers instantly at no API cost; **Live** mode calls the model.
+
 Run the evaluation, tests and pre-flight check:
 
 ```bash
 python evals/run_comparison.py --replay    # full architecture comparison in seconds, no API key
 python evals/run_comparison.py --quick     # live: rules-only + single agent
-python -m unittest discover -s tests        # 33 unit tests, no LLM or server needed
+python -m unittest discover -s tests        # 42 tests (incl. safety invariants), no LLM or server needed
 python verify_setup.py                      # starter-pack pre-flight
 ```
+
+## Screenshots
+
+**Review a request.** The recommendation, next step and approvals sit on the left; the policy checklist is on the right. Each check opens to show its evidence (REQ-1004: a limited-use AI tool asked to handle customer PII).
+
+![Review: recommendation and policy checks](docs/images/01_review_recommendation.png)
+
+**AI reasoning, grounded in records.** Every point in "Why" cites a real record ID or policy section, and the telemetry line shows the cost of the run.
+
+![Review: AI reasoning and human decision](docs/images/02_review_ai_reasoning.png)
+
+**Prompt injection and missing information** (REQ-1006). The instruction in the justification is flagged and ignored, the approval tier is left undetermined rather than guessed, and the requester is asked for the missing details.
+
+![Prompt injection and incomplete request](docs/images/03_prompt_injection.png)
+
+**Compare A vs B on the same request** (REQ-1007, recorded answers). The decision is identical; B costs about 2× the model time and tokens.
+
+![Architecture comparison table](docs/images/04_compare_architectures.png)
+
+![Architecture comparison details](docs/images/05_compare_details.png)
+
+**Evaluation across all 16 labelled cases**, built into the Compare tab.
+
+![Evaluation results](docs/images/06_evaluation_results.png)
 
 ## How it works
 
@@ -74,7 +102,9 @@ Current code, replayed from the recorded run (`python evals/run_comparison.py --
 | End-to-end latency on Groq free tier | 0.2 s | 21 s | 56 s |
 | LLM calls / tokens per request | 0 / 0 | **1 / 2.1k** | 2 / 4.6k |
 | Ungrounded model claims blocked | - | 4 | 5 |
+| Under-escalated runs (weaker than policy requires) | 0 | 0 | 0 |
 
+- **Every miss was in the safe direction.** No run recommended a weaker action than policy requires or dropped a required approval.
 - **Remaining failures:**
   - **L-08**, all three variants: they route an obvious duplicate to review instead of recommending reuse. This is conservative, and the overlap stays visible to the human.
   - **L-10**, staged only: it over-escalates a $950 training pack.
