@@ -4,16 +4,16 @@
 Ship **Architecture A: a single agent on a deterministic rules engine.** If the model is unavailable, the system falls back to the rules-only decision.
 
 ## Evidence
-16 labelled cases, the same for every architecture (10 dataset, 5 synthetic, 1 API outage). Model: `qwen/qwen3.8-27b` (Groq), 1 run per case. Current code, replaying the recorded run; the original live run is in `evals/results_comparison.md`.
+16 labelled cases, the same for every architecture (10 dataset, 5 synthetic, 1 API outage). Model: `qwen/qwen3.8-27b` (Groq); single agent 2 runs per case, staged 1. Current code, replaying the recorded runs; the original live run is in `evals/results_comparison.md`.
 
 | Metric | Rules only | **A · Single** | B · Staged |
 |---|---:|---:|---:|
-| All rubric checks passed | 15/16 | **15/16** | 14/16 |
+| All rubric checks passed | 15/16 | **30/32** | 14/16 |
 | Policy / escalation / grounding | 100% | 100% | 100% |
-| Model latency (excl. throttling) | 0.2 s | **1.5 s** | 3.7 s |
+| Model latency (excl. throttling) | 0.2 s | **1.4 s** | 3.7 s |
 | End-to-end, free tier | 0.2 s | 21 s | 56 s |
 | LLM calls / tokens | 0 / 0 | **1 / 2.1k** | 2 / 4.6k |
-| Ungrounded claims blocked | - | 4 | 5 |
+| Ungrounded claims blocked | - | 8 (2 runs) | 5 |
 | Under-escalated runs | 0 | 0 | 0 |
 
 ## Trade-offs
@@ -24,13 +24,13 @@ Ship **Architecture A: a single agent on a deterministic rules engine.** If the 
 **The AI does judgment and explanation.** It decides whether an existing tool covers the need and whether an AI tool fits the data class, and it writes a recommendation grounded in record IDs. Rules-only matches its next-action accuracy but cannot explain or judge credible gaps. Claims citing records no tool returned are removed.
 
 **Judgment errors:**
-- **L-10:** in the live run the model recommended "reuse" with nothing to reuse. I added a guardrail requiring a catalog overlap. Replaying the recorded answers confirms the fix (14 → 15/16) with no new model calls. This was a post-hoc fix, disclosed here.
+- **L-10:** in the live run the model recommended "reuse" with nothing to reuse. I added a guardrail requiring a catalog overlap. Replay confirms the fix with no new model calls, and a later live run caught the same mistake. Post-hoc, disclosed here.
 - **L-08:** all variants routed a clear duplicate (TaskFlow Pro) to review instead of recommending reuse. Conservative: no run in any variant was weaker than policy requires.
 
 **Prompt.** Using grounded evidence lines plus policy §3/§8/§9, instead of the full policy and raw tool JSON, cut prompt tokens 47% with the same 6/6 public-case result.
 
 ## Risks / limitations
-- One run per case, so run-to-run variance is unmeasured; L-08 flipped between reuse and review in live use. I'd run 3–5 repeats before production.
+- The single agent's two runs gave identical output on all 16 cases (temperature 0); staged ran once.
 - Small test set, with labels I wrote from the policy before any model run.
 
 ## Why this is the right MVP

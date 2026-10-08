@@ -10,10 +10,11 @@ python evals/run_comparison.py --replay        # seconds, no API key: re-run on 
 python evals/run_comparison.py --quick         # live: rules_only + single, 1 repeat
 python evals/run_comparison.py --record        # live: all architectures, records answers for --replay
 python evals/run_comparison.py --record --append --architectures staged   # re-run one architecture, keep the rest
+python evals/run_comparison.py --record --append --architectures single --repeats 1 --start-repeat 2   # add a repeat
 python evals/run_comparison.py --architectures single --repeats 1 --cases L-06 S-03
 ```
 
-**Replay.** `--record` saves every model response, with its measured latency and token counts, to `llm_cache.jsonl`. `--replay` re-runs the real tools, rules engine, guardrails, merge and scoring, and serves only the model calls from that file. The whole comparison reproduces in seconds without an API key. Reported latency and tokens are the recorded ones. If a prompt, the policy excerpt or the model has changed since recording, replay stops with `ReplayMiss` rather than reporting stale numbers. Replay also re-scores recorded answers after a code-side change, such as a new guardrail, without spending any quota.
+**Replay.** `--record` saves every model response, with its measured latency and token counts, to `llm_cache.jsonl`. `--replay` re-runs the real tools, rules engine, guardrails, merge and scoring, and serves only the model calls from that file. The whole comparison reproduces in seconds without an API key. Reported latency and tokens are the recorded ones. If a prompt, the policy excerpt or the model has changed since recording, replay stops with `ReplayMiss` rather than reporting stale numbers. A repeat that was never recorded is skipped, never filled with another run's answer. Replay also re-scores recorded answers after a code-side change, such as a new guardrail, without spending any quota.
 
 **Provider limits.** Live runs are bounded by the provider, not the pipeline. The Groq free tier for `qwen/qwen3.8-27b` allows 8,000 input tokens/minute, 1,000 output tokens/minute and 200,000 tokens/day per organisation. Model time per call is about 1–1.5 s; the rest of each live latency figure is rate-limit waiting, which the results report separately.
 

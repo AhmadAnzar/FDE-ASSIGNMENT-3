@@ -130,7 +130,10 @@ def _create(messages: list[dict], telemetry: RunTelemetryCounter) -> str:
         entries = _load_replay().get(key)
         if not entries:
             raise ReplayMiss("no recorded response for this prompt (prompt, policy or model changed since recording)")
-        e = entries[occurrence % len(entries)]
+        if occurrence >= len(entries) and os.getenv("LLM_REPLAY_STRICT") == "1":
+            # The evaluation must not present one recording as two runs.
+            raise ReplayMiss(f"repeat {occurrence + 1} of this prompt was never recorded")
+        e = entries[occurrence % len(entries)]  # interactive replay (UI) may reuse recordings
         telemetry.record_retry_wait(e["wait_ms"])
         telemetry.record_llm_call(latency_ms=e["latency_ms"], prompt_tokens=e["prompt_tokens"], completion_tokens=e["completion_tokens"])
         telemetry.replayed_ms += e["latency_ms"] + e["wait_ms"]

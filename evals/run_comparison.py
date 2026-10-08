@@ -47,6 +47,7 @@ if str(ROOT) not in sys.path:
 from src.data_access import get_request  # noqa: E402
 from src.solution import process_request  # noqa: E402
 from src.tools import gather_evidence  # noqa: E402
+from src.llm import ReplayMiss  # noqa: E402
 import requests  # noqa: E402
 
 SPECIALIST = {"Finance", "CFO", "Security", "Privacy", "Legal"}
@@ -295,6 +296,8 @@ def main() -> None:
     parser.add_argument("--architectures", nargs="+", default=["rules_only", "single", "staged"],
                         choices=["rules_only", "single", "staged"])
     parser.add_argument("--repeats", type=int, default=2)
+    parser.add_argument("--start-repeat", type=int, default=1,
+                        help="number of the first repeat (with --append: add repeat 2, 3, ... to an existing run)")
     parser.add_argument("--cases", nargs="*", help="case_ids to run (default: all)")
     parser.add_argument("--out", default=None, help="output basename in evals/ (default depends on mode)")
     mode = parser.add_mutually_exclusive_group()
@@ -315,6 +318,7 @@ def main() -> None:
             cache_path().unlink(missing_ok=True)  # a fresh recording starts clean
     elif args.replay:
         os.environ["LLM_CACHE"] = "replay"
+        os.environ["LLM_REPLAY_STRICT"] = "1"  # never reuse one recording as another repeat
     out_name = args.out or ("results_comparison_replay" if args.replay else "results_comparison")
     mode_note = ("replayed from recorded model responses (evals/llm_cache.jsonl); latency and tokens are as recorded"
                  if args.replay else "live model calls")
@@ -332,11 +336,18 @@ def main() -> None:
         for arch in args.architectures:
             repeats = 1 if arch == "rules_only" else args.repeats  # deterministic: one run is enough
             print(f"\n=== {arch} ({len(cases)} cases x {repeats}) - {mode_note} ===", flush=True)
-            for rep in range(1, repeats + 1):
+            first = 1 if arch == "rules_only" else args.start_repeat
+            for rep in range(first, first + repeats):
                 for case in cases:
                     start = time.perf_counter()
                     try:
                         decision, refs = run_case(case, arch)
+                    except ReplayMiss as exc:
+                        if rep > 1:  # this repeat was simply never recorded for this architecture
+                            print(f"skip  {case['case_id']:<5} r{rep}  not recorded", flush=True)
+                            continue
+                        row = crash_row(case, arch, rep, start, exc)
+                        print(f"ERROR {case['case_id']}: {type(exc).__name__}: {exc}", flush=True)
                     except Exception as exc:  # a crash is a failure, not an abort
                         row = crash_row(case, arch, rep, start, exc)
                         print(f"ERROR {case['case_id']}: {type(exc).__name__}: {exc}", flush=True)
@@ -353,7 +364,8 @@ def main() -> None:
     if appending:  # summarise everything in the file, not just this invocation
         rows = load_rows(out_csv)
         architectures = [a for a in ("rules_only", "single", "staged") if any(r["architecture"] == a for r in rows)]
-    summary = summarise(rows, architectures, args.repeats, len(cases), mode_note)
+    max_rep = max((int(r["repeat"]) for r in rows), default=1)
+    summary = summarise(rows, architectures, max(args.repeats, max_rep), len(cases), mode_note)
     (ROOT / "evals" / f"{out_name}.md").write_text(summary, encoding="utf-8")
     print("\n" + summary)
     print(f"Wrote {out_csv.relative_to(ROOT)} and evals/{out_name}.md in {time.perf_counter() - started:.1f}s", flush=True)

@@ -92,24 +92,25 @@ The rubric matches the brief: correct next action, policy followed, escalation c
 
 ### Results
 
-Current code, replayed from the recorded run (`python evals/run_comparison.py --replay`, about 15 s, no API key):
+Current code, replayed from the recorded runs (`python evals/run_comparison.py --replay`, about 25 s, no API key):
 
 | Metric | Rules only (no AI) | **A · Single** | B · Analyst → Reviewer |
 |---|---:|---:|---:|
-| All rubric checks passed | 15/16 | **15/16** | 14/16 |
+| All rubric checks passed | 15/16 | **30/32** (2 runs per case) | 14/16 |
 | Policy followed / escalation correct / evidence grounded | 100% | 100% | 100% |
-| Model latency (excl. rate-limit wait) | 0.2 s | **1.5 s** | 3.7 s |
+| Model latency (excl. rate-limit wait) | 0.2 s | **1.4 s** | 3.7 s |
 | End-to-end latency on Groq free tier | 0.2 s | 21 s | 56 s |
 | LLM calls / tokens per request | 0 / 0 | **1 / 2.1k** | 2 / 4.6k |
-| Ungrounded model claims blocked | - | 4 | 5 |
+| Ungrounded model claims blocked | - | 8 (over 2 runs) | 5 |
 | Under-escalated runs (weaker than policy requires) | 0 | 0 | 0 |
 
 - **Every miss was in the safe direction.** No run recommended a weaker action than policy requires or dropped a required approval.
 - **Remaining failures:**
   - **L-08**, all three variants: they route an obvious duplicate to review instead of recommending reuse. This is conservative, and the overlap stays visible to the human.
   - **L-10**, staged only: it over-escalates a $950 training pack.
-- **Per-case rubric results** (48 rows: 16 cases × 3 architectures, in the provided template format): `templates/evaluation_results_template.csv`.
-- **Raw live run** (before the L-10 reuse guardrail was added): `evals/results_comparison.md`. Single scored 14/16 there.
+- **Per-case rubric results** (64 rows: rules-only 16, single 32, staged 16, in the provided template format): `templates/evaluation_results_template.csv`.
+- **Stability:** the single agent was run twice on every case. Its output (action, approvals, flags) was identical on all 16.
+- **Raw live runs:** `evals/results_comparison.md`. Single repeat 1 was recorded before the L-10 reuse guardrail was added and scored 14/16 there. Repeat 2 was recorded after it; the model again said "reuse" for L-10, and the guardrail corrected it.
 - **Prompt trim** (`evals/results_prompt_full.md`, 6 public cases, single agent): prompt tokens went from 3,234 to 1,708 (−47%) and model latency from 1.43 s to 1.20 s, with the same 6/6 pass rate.
 
 ## Ship decision
