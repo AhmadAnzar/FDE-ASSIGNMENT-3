@@ -78,6 +78,7 @@ Current code, replayed from the recorded run (`python evals/run_comparison.py --
 - **Remaining failures:**
   - **L-08**, all three variants: they route an obvious duplicate to review instead of recommending reuse. This is conservative, and the overlap stays visible to the human.
   - **L-10**, staged only: it over-escalates a $950 training pack.
+- **Per-case rubric results** (48 rows: 16 cases × 3 architectures, in the provided template format): `templates/evaluation_results_template.csv`.
 - **Raw live run** (before the L-10 reuse guardrail was added): `evals/results_comparison.md`. Single scored 14/16 there.
 - **Prompt trim** (`evals/results_prompt_full.md`, 6 public cases, single agent): prompt tokens went from 3,234 to 1,708 (−47%) and model latency from 1.43 s to 1.20 s, with the same 6/6 pass rate.
 
